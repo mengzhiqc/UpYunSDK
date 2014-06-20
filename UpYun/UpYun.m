@@ -6,7 +6,7 @@
 //
 
 #import "UpYun.h"
-#import "NSString+SAMAdditions.h"
+#import <CommonCrypto/CommonDigest.h>
 #import "AFNetworking.h"
 
 @implementation UpYun {
@@ -34,7 +34,7 @@
   _bucket = bucket;
   _passcode = passcode;
   
-  _expiresIn = 100;
+  _expiresIn = 600;
   _params = [NSMutableDictionary dictionary];
   _progressBlock = nil;
   
@@ -59,7 +59,7 @@
 - (void)uploadFileWithPath:(NSString *)path useSaveKey:(NSString *)saveKey completion:(UpYunCompletionBlock)completionBlock {
   NSString *policy = [self policyWithSaveKey:saveKey andBucket:self.bucket];
   NSString *str = [NSString stringWithFormat:@"%@&%@", policy, self.passcode];
-  NSString *signature = str.sam_MD5Digest.sam_stringByEscapingForURLQuery.lowercaseString;
+  NSString *signature = str.MD5Digest.stringByEscapingForURLQuery.lowercaseString;
   NSDictionary *dic = @{
                         @"policy": policy,
                         @"signature": signature,
@@ -71,7 +71,7 @@
 - (void)uploadFileWithData:(NSData *)data useSaveKey:(NSString *)saveKey completion:(UpYunCompletionBlock)completionBlock {
   NSString *policy = [self policyWithSaveKey:saveKey andBucket:self.bucket];
   NSString *str = [NSString stringWithFormat:@"%@&%@", policy, self.passcode];
-  NSString *signature = str.sam_MD5Digest.sam_stringByEscapingForURLQuery.lowercaseString;
+  NSString *signature = str.MD5Digest.stringByEscapingForURLQuery.lowercaseString;
   NSDictionary *dic = @{
                         @"policy": policy,
                         @"signature": signature,
@@ -94,7 +94,7 @@
   NSData *jsonData = [NSJSONSerialization dataWithJSONObject:dic options:NSJSONWritingPrettyPrinted error:nil];
   NSString *json = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
 //  NSLog(@"%@", json);
-  return json.sam_base64EncodedString;
+  return json.base64EncodedString;
 }
 
 - (void)upload:(NSDictionary *)dic completion:(UpYunCompletionBlock)completionBlock {
@@ -177,6 +177,83 @@
       self.progressBlock(bytesWritten, totalBytesWritten, totalBytesExpectedToWrite);
   }];
   [operation start];
+}
+
+@end
+
+@implementation NSString (Utilities)
+
+static const char sam_base64EncodingTable[64] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+- (NSString *)base64EncodedString  {
+  //
+  if ([self length] == 0) {
+    return nil;
+	}
+  NSData *base64Data = [self dataUsingEncoding:NSUTF8StringEncoding];
+  
+  //
+  const uint8_t *input = base64Data.bytes;
+	NSInteger length = base64Data.length;
+	
+	NSMutableData *data = [NSMutableData dataWithLength:((length + 2) / 3) * 4];
+  uint8_t *output = (uint8_t *)data.mutableBytes;
+	
+  for (NSInteger i = 0; i < length; i += 3) {
+    NSInteger value = 0;
+    for (NSInteger j = i; j < (i + 3); j++) {
+      value <<= 8;
+			
+      if (j < length) {
+        value |= (0xFF & input[j]);
+      }
+    }
+		
+    NSInteger index = (i / 3) * 4;
+    output[index + 0] = sam_base64EncodingTable[(value >> 18) & 0x3F];
+    output[index + 1] = sam_base64EncodingTable[(value >> 12) & 0x3F];
+    output[index + 2] = (i + 1) < length ? sam_base64EncodingTable[(value >> 6) & 0x3F] : '=';
+    output[index + 3] = (i + 2) < length ? sam_base64EncodingTable[(value >> 0) & 0x3F] : '=';
+  }
+	
+  return [[NSString alloc] initWithData:data encoding:NSASCIIStringEncoding];
+}
+
+
+- (NSString *)MD5Digest {
+  //
+  const char *cstr = [self cStringUsingEncoding:NSUTF8StringEncoding];
+	NSData *md5Data = [NSData dataWithBytes:cstr length:self.length];
+  
+  //
+  uint8_t digest[CC_MD5_DIGEST_LENGTH];
+	CC_MD5(md5Data.bytes, (CC_LONG)md5Data.length, digest);
+
+  //
+  NSMutableString *ms = [[NSMutableString alloc] initWithCapacity:CC_MD5_DIGEST_LENGTH * 2];
+	for (int i = 0; i < CC_MD5_DIGEST_LENGTH; i++) {
+		[ms appendFormat: @"%02x", (int)digest[i]];
+	}
+	return [ms copy];
+}
+
+- (NSString *)stringByEscapingForURLQuery {
+	NSString *result = self;
+  
+	static CFStringRef leaveAlone = CFSTR(" ");
+	static CFStringRef toEscape = CFSTR("\n\r:/=,!$&'()*+;[]@#?%");
+  
+	CFStringRef escapedStr = CFURLCreateStringByAddingPercentEscapes(kCFAllocatorDefault, (__bridge CFStringRef)self, leaveAlone,
+                                                                   toEscape, kCFStringEncodingUTF8);
+  
+	if (escapedStr) {
+		NSMutableString *mutable = [NSMutableString stringWithString:(__bridge NSString *)escapedStr];
+		CFRelease(escapedStr);
+    
+		[mutable replaceOccurrencesOfString:@" " withString:@"+" options:NSCaseInsensitiveSearch range:NSMakeRange(0, [mutable length])];
+		result = mutable;
+	}
+	return result;  
 }
 
 @end

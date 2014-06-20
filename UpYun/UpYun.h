@@ -33,3 +33,11 @@ typedef void (^UpYunUploadProgressBlock)(NSUInteger bytesWritten, long long tota
                 completion:(UpYunCompletionBlock)completionBlock;
 
 @end
+
+@interface NSString (Utilities)
+
+- (NSString *)base64EncodedString;
+- (NSString *)MD5Digest;
+- (NSString *)stringByEscapingForURLQuery;
+
+@end
