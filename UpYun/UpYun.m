@@ -148,7 +148,7 @@
   // Only add the boundary if this is not the last item in the post body
 	[post appendData:[[NSString stringWithFormat:@"\r\n--%@--\r\n",stringBoundary] dataUsingEncoding:NSASCIIStringEncoding]];
   
-  NSString *postLength = [NSString stringWithFormat:@"%d", post.length];
+  NSString *postLength = [NSString stringWithFormat:@"%lu", (unsigned long)post.length];
   [request setValue:postLength forHTTPHeaderField:@"Content-Length"];
   [request setHTTPBody:post];
   
