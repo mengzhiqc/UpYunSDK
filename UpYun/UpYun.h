@@ -19,9 +19,12 @@ typedef void (^UpYunUploadProgressBlock)(NSUInteger bytesWritten, long long tota
 @property (nonatomic, assign) NSTimeInterval expiresIn;
 @property (nonatomic, strong) NSMutableDictionary *params;
 @property (nonatomic, strong) NSString *passcode;
+@property (nonatomic, strong) NSString *policy;
+@property (nonatomic, strong) NSString *signature;
 @property (nonatomic, copy) UpYunUploadProgressBlock progressBlock;
 
 - (id)initWithBucket:(NSString *)bucket andPassCode:(NSString *)passcode;
+- (id)initWithBucket:(NSString *)bucket andPolicy:(NSString *)policy andSignature:(NSString *)signature;
 
 - (void)uploadFileWithPath:(NSString *)path
                 completion:(UpYunCompletionBlock)completionBlock;

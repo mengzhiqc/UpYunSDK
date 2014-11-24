@@ -14,6 +14,8 @@
   NSTimeInterval _expiresIn;
   NSMutableDictionary *_params;
   NSString *_passcode;
+  NSString *_policy;
+  NSString *_signature;
   UpYunUploadProgressBlock _progressBlock;
 }
 
@@ -22,6 +24,8 @@
 @synthesize params = _params;
 @synthesize passcode = _passcode;
 @synthesize progressBlock = _progressBlock;
+@synthesize policy = _policy;
+@synthesize signature = _signature;
 
 #pragma mark -
 #pragma mark Init
@@ -41,6 +45,18 @@
   return self;
 }
 
+- (id)initWithBucket:(NSString *)bucket andPolicy:(NSString *)policy andSignature:(NSString *)signature {
+    _bucket = bucket;
+    _policy = policy;
+    _signature = signature;
+    
+    _expiresIn = 600;
+    _params = [NSMutableDictionary dictionary];
+    _progressBlock = nil;
+    
+    return self;
+}
+
 #pragma mark -
 #pragma mark Public Methods
 
@@ -57,24 +73,29 @@
 }
 
 - (void)uploadFileWithPath:(NSString *)path useSaveKey:(NSString *)saveKey completion:(UpYunCompletionBlock)completionBlock {
-  NSString *policy = [self policyWithSaveKey:saveKey andBucket:self.bucket];
-  NSString *str = [NSString stringWithFormat:@"%@&%@", policy, self.passcode];
-  NSString *signature = str.MD5Digest.stringByEscapingForURLQuery.lowercaseString;
+    if (![_policy isEqual:nil] || ![_signature isEqual:nil]) {
+        _policy = [self policyWithSaveKey:saveKey andBucket:self.bucket];
+        NSString *str = [NSString stringWithFormat:@"%@&%@", _policy, self.passcode];
+        _signature = str.MD5Digest.stringByEscapingForURLQuery.lowercaseString;
+    }
+  
   NSDictionary *dic = @{
-                        @"policy": policy,
-                        @"signature": signature,
+                        @"policy": _policy,
+                        @"signature": _signature,
                         @"file": path
                         };
   [self upload:dic completion:completionBlock];
 }
 
 - (void)uploadFileWithData:(NSData *)data useSaveKey:(NSString *)saveKey completion:(UpYunCompletionBlock)completionBlock {
-  NSString *policy = [self policyWithSaveKey:saveKey andBucket:self.bucket];
-  NSString *str = [NSString stringWithFormat:@"%@&%@", policy, self.passcode];
-  NSString *signature = str.MD5Digest.stringByEscapingForURLQuery.lowercaseString;
+  if ([_policy isEqual:nil] || [_signature isEqual:nil]) {
+      _policy = [self policyWithSaveKey:saveKey andBucket:self.bucket];
+      NSString *str = [NSString stringWithFormat:@"%@&%@", _policy, self.passcode];
+      _signature = str.MD5Digest.stringByEscapingForURLQuery.lowercaseString;
+  }
   NSDictionary *dic = @{
-                        @"policy": policy,
-                        @"signature": signature,
+                        @"policy": _policy,
+                        @"signature": _signature,
                         @"file": data
                         };
   [self upload:dic completion:completionBlock];
@@ -101,8 +122,8 @@
   NSString *policy = dic[@"policy"];
   NSString *signature = dic[@"signature"];
   id file = dic[@"file"];
-  
-  NSMutableData *post = [NSMutableData data];
+
+    NSMutableData *post = [NSMutableData data];
   NSURL *myWebserverURL = [NSURL URLWithString:[NSString stringWithFormat:@"%@%@/", UPYUN_API_DOMAIN, self.bucket]];
 	
 	NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:myWebserverURL];
@@ -152,7 +173,6 @@
   [request setValue:postLength forHTTPHeaderField:@"Content-Length"];
   [request setHTTPBody:post];
   
-  //
   AFHTTPRequestOperation *operation = [[AFHTTPRequestOperation alloc] initWithRequest:request];
   [operation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
     NSDictionary *dic = [NSJSONSerialization JSONObjectWithData:operation.responseData options:NSJSONReadingMutableContainers error:nil];
